@@ -47,9 +47,7 @@ def get_images(nb, real):
         for img in os.listdir(newpath):
             filename = os.fsdecode(img)
             if filename.endswith("jpg"):
-                image = np.array(Image.open(os.path.join(newpath, img)))
-                image = resize(image, (128, 128)).reshape(1, 3, 128, 128)
-                images.append(image)
+                images.append(os.path.join(newpath, img))
         #     if len(images) == nb:
         #         break
         # if len(images) == nb:
@@ -60,7 +58,7 @@ def get_images(nb, real):
     print(labels.shape)
     return images,labels
 
-def test_NUAA(weights):
+def test_NUAA(weights,res):
     dnnlib.tflib.init_tf()
     G, D, Gs = pickle.load(open(weights, "rb"))
 
@@ -69,6 +67,8 @@ def test_NUAA(weights):
     images,labels_neg = get_images(nb_images,True)
     negatives = []
     for image in images:
+        image = np.array(Image.open(image))
+        image = resize(image, res).reshape(1, 3, res[0],res[1])
         negatives.append(D.run(image, None)[0][0])
 
     print("done negatives")
@@ -76,6 +76,8 @@ def test_NUAA(weights):
     positives = []
 
     for image in images:
+        image = np.array(Image.open(image))
+        image = resize(image, res).reshape(1, 3, res[0],res[1])
         positives.append( D.run(image, None)[0][0])
 
 
@@ -144,18 +146,16 @@ def get_all_images(loc,tag):
         else:
             filename = os.fsdecode(path)
             if filename.endswith("jpg"):
-                image = np.array(Image.open(os.path.join(loc,path)))
-                #image = resize(image, (128, 128)).reshape(1,3, 128, 128)
-                image = resize(image, (1024, 1024)).reshape(1, 3, 1024, 1024)
+                image = os.path.join(loc,path)
                 all_images.append(image)
-                if tag in filename:
-                #if not filename.startswith(("1","2","HR_1")):
+                if tag in filename or ("casia" in loc and not filename.startswith(("1","2","HR_1")) ):
                     all_labels.append(1)
                 else:
                     all_labels.append(0)
     return all_images,all_labels
 
-def test_replay(weights, multiple = False):
+
+def test_replay(weights, multiple = False, res = (128,128)):
     dnnlib.tflib.init_tf()
     G, D, Gs = pickle.load(open(weights, "rb"))
     if multiple:
@@ -175,18 +175,22 @@ def test_replay(weights, multiple = False):
 
     train_pred = []
     for image in train_images:
+        image = np.array(Image.open(image))
+        image = resize(image, res).reshape(1, 3, res[0],res[1])
         train_pred.append(D.run(image, None)[0][0])
 
     print("done train")
 
     test_pred = []
     for image in test_images:
+        image = np.array(Image.open(image))
+        image = resize(image, res).reshape(1, 3, res[0],res[1])
         test_pred.append(D.run(image, None)[0][0])
 
     calculate_metrics(train_pred,train_labels,test_pred,test_labels)
 
 
-def test_casia(weights, multiple = False):
+def test_casia(weights, multiple = False, res = (128,128)):
     dnnlib.tflib.init_tf()
 
     G, D, Gs = pickle.load(open(weights, "rb"))
@@ -206,21 +210,25 @@ def test_casia(weights, multiple = False):
 
     train_pred = []
     for image in train_images:
+        image = np.array(Image.open(image))
+        image = resize(image, res).reshape(1, 3, res[0],res[1])
         train_pred.append(D.run(image, None)[0][0])
 
     print("done train")
 
     test_pred = []
     for image in test_images:
+        image = np.array(Image.open(image))
+        image = resize(image, res).reshape(1, 3, res[0],res[1])
         test_pred.append(D.run(image, None)[0][0])
 
     calculate_metrics(train_pred,train_labels,test_pred,test_labels)
 
-#weights = r'../results/karras2019stylegan-ffhq-1024x1024.pkl'
-#weights = r'../results/network-snapshot-018513.pkl'
+#weights = r'../weights/karras2019stylegan-ffhq-1024x1024.pkl'
+#weights = r'../weights/network-snapshot-018513.pkl'
 weights = "../weights/stylegan2-ffhq-config-f.pkl"
 
 
-test_NUAA(weights)
-#test_replay(weights,False)
-#test_casia()
+#test_NUAA(weights,(1024,1024))
+test_replay(weights,True, (1024,1024))
+#test_casia(weights,True, (1024,1024))
