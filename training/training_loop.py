@@ -128,7 +128,7 @@ def training_loop(
     network_snapshot_ticks  = 50,       # How often to save network snapshots? None = only save 'networks-final.pkl'.
     save_tf_graph           = False,    # Include full TensorFlow computation graph in the tfevents file?
     save_weight_histograms  = False,    # Include weight histograms in the tfevents file?
-    resume_pkl              = None,     # Network pickle to resume training from, None = train from scratch.
+    resume_pkl              = "../weights/network-snapshot-018513.pkl",     # Network pickle to resume training from, None = train from scratch.
     resume_kimg             = 0.0,      # Assumed training progress at the beginning. Affects reporting and training schedule.
     resume_time             = 0.0,      # Assumed wallclock time at the beginning. Affects reporting.
     resume_with_new_nets    = False):   # Construct new networks according to G_args and D_args before resuming training?
@@ -139,6 +139,7 @@ def training_loop(
 
     # Load training set.
     training_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args)
+    testing_set = dataset.load_dataset(data_dir="../databases/replay-attack/attack_tfrecords", verbose=True,test=True, **dataset_args)
     grid_size, grid_reals, grid_labels = misc.setup_snapshot_image_grid(training_set, **grid_args)
     misc.save_image_grid(grid_reals, dnnlib.make_run_dir_path('reals.png'), drange=training_set.dynamic_range, grid_size=grid_size)
 
@@ -156,6 +157,13 @@ def training_loop(
             else: G = rG; D = rD; Gs = rGs
 
     # Print layers and generate initial image snapshot.
+    G.trainables = {}
+    new_trainable = {}
+    for x in D.trainables.items():
+        if "Dense" in x[0] or "Output" in x[0]:
+            new_trainable[x[0]] = x[1]
+    G.trainables = new_trainable
+    print(G.trainables)
     G.print_layers(); D.print_layers()
     sched = training_schedule(cur_nimg=total_kimg*1000, training_set=training_set, **sched_args)
     grid_latents = np.random.randn(np.prod(grid_size), *G.input_shape[1:])
@@ -203,6 +211,7 @@ def training_loop(
                 reals_var = tf.Variable(name='reals', trainable=False, initial_value=tf.zeros([sched.minibatch_gpu] + training_set.shape))
                 labels_var = tf.Variable(name='labels', trainable=False, initial_value=tf.zeros([sched.minibatch_gpu, training_set.label_size]))
                 reals_write, labels_write = training_set.get_minibatch_tf()
+                fakes_write, fakes_labels = testing_set.get_minibatch_tf()
                 reals_write, labels_write = process_reals(reals_write, labels_write, lod_in, mirror_augment, training_set.dynamic_range, drange_net)
                 reals_write = tf.concat([reals_write, reals_var[minibatch_gpu_in:]], axis=0)
                 labels_write = tf.concat([labels_write, labels_var[minibatch_gpu_in:]], axis=0)
@@ -219,7 +228,7 @@ def training_loop(
                 with tf.name_scope('G_loss'):
                     G_loss, G_reg = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=G_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, **G_loss_args)
                 with tf.name_scope('D_loss'):
-                    D_loss, D_reg = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=D_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, reals=reals_read, labels=labels_read, **D_loss_args)
+                    D_loss, D_reg = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=D_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, reals=reals_read, labels=labels_read, fakes=fakes_write, fakes_labels = fakes_labels, **D_loss_args)
 
             # Register gradients.
             if not lazy_regularization:
