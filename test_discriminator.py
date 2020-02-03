@@ -226,9 +226,9 @@ def test_casia(weights, multiple = False, res = (128,128)):
 
 #weights = r'../weights/karras2019stylegan-ffhq-1024x1024.pkl'
 #weights = r'../weights/network-snapshot-018513.pkl'
-weights = "../weights/stylegan2-ffhq-config-f.pkl"
+#weights = "../weights/stylegan2-ffhq-config-f.pkl"
 
 
 #test_NUAA(weights,(1024,1024))
-test_replay(weights,True, (1024,1024))
+#test_replay(weights,True, (1024,1024))
 #test_casia(weights,True, (1024,1024))
