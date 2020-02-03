@@ -162,8 +162,8 @@ def training_loop(
     for x in D.trainables.items():
         if "Dense" in x[0] or "Output" in x[0]:
             new_trainable[x[0]] = x[1]
-    G.trainables = new_trainable
-    print(G.trainables)
+    D.trainables = new_trainable
+    print(D.trainables)
     G.print_layers(); D.print_layers()
     sched = training_schedule(cur_nimg=total_kimg*1000, training_set=training_set, **sched_args)
     grid_latents = np.random.randn(np.prod(grid_size), *G.input_shape[1:])
