@@ -1,0 +1,25 @@
+#!/usr/bin/bash
+
+#PBS -l partition=gpu
+#PBS -l nodes=1:ppn=32:gpus=8:cascadelake
+#PBS -l walltime=71:59:00
+#PBS -l pmem=5gb
+#PBS -N stylegan2_job
+#PBS -A lp_thesis_r0629695
+#PBS -m bea
+#PBS -M simon.smeets@student.kuleuven.be
+
+module load Python/3.6.4-intel-2018a
+module load cuDNN/7.6.4-CUDA-10.1.105
+module load GLib/2.54.3-GCCcore-6.4.0
+
+cd $VSC_DATA
+cp -r ffhq /node_scratch
+
+source styleganenv/bin/activate
+cd stylegan2
+python run_training.py --num-gpus=8 --data-dir=/node_scratch --config=config-f --dataset=ffhq --mirror-augment=true
+
+
+
+
