@@ -157,13 +157,7 @@ def training_loop(
             else: G = rG; D = rD; Gs = rGs
 
     # Print layers and generate initial image snapshot.
-    G.trainables = {}
-    new_trainable = {}
-    for x in D.trainables.items():
-        if "Dense" in x[0] or "Output" in x[0]:
-            new_trainable[x[0]] = x[1]
-    D.trainables = new_trainable
-    print(D.trainables)
+
     G.print_layers(); D.print_layers()
     sched = training_schedule(cur_nimg=total_kimg*1000, training_set=training_set, **sched_args)
     grid_latents = np.random.randn(np.prod(grid_size), *G.input_shape[1:])
@@ -205,6 +199,13 @@ def training_loop(
             G_gpu = G if gpu == 0 else G.clone(G.name + '_shadow')
             D_gpu = D if gpu == 0 else D.clone(D.name + '_shadow')
 
+            G_gpu.trainables = {}
+            new_trainable = {}
+            for x in D_gpu.trainables.items():
+                if "Dense" in x[0] or "Output" in x[0]:
+                    new_trainable[x[0]] = x[1]
+            D_gpu.trainables = new_trainable
+
             # Fetch training data via temporary variables.
             with tf.name_scope('DataFetch'):
                 sched = training_schedule(cur_nimg=int(resume_kimg*1000), training_set=training_set, **sched_args)
@@ -225,19 +226,19 @@ def training_loop(
             if 'lod' in G_gpu.vars: lod_assign_ops += [tf.assign(G_gpu.vars['lod'], lod_in)]
             if 'lod' in D_gpu.vars: lod_assign_ops += [tf.assign(D_gpu.vars['lod'], lod_in)]
             with tf.control_dependencies(lod_assign_ops):
-                with tf.name_scope('G_loss'):
-                    G_loss, G_reg = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=G_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, **G_loss_args)
+                #with tf.name_scope('G_loss'):
+                    #G_loss, G_reg = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=G_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, **G_loss_args)
                 with tf.name_scope('D_loss'):
                     D_loss, D_reg = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=D_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, reals=reals_read, labels=labels_read, fakes=fakes_write, fakes_labels = fakes_labels, **D_loss_args)
 
             # Register gradients.
             if not lazy_regularization:
-                if G_reg is not None: G_loss += G_reg
+                #if G_reg is not None: G_loss += G_reg
                 if D_reg is not None: D_loss += D_reg
             else:
-                if G_reg is not None: G_reg_opt.register_gradients(tf.reduce_mean(G_reg * G_reg_interval), G_gpu.trainables)
+                #if G_reg is not None: G_reg_opt.register_gradients(tf.reduce_mean(G_reg * G_reg_interval), G_gpu.trainables)
                 if D_reg is not None: D_reg_opt.register_gradients(tf.reduce_mean(D_reg * D_reg_interval), D_gpu.trainables)
-            G_opt.register_gradients(tf.reduce_mean(G_loss), G_gpu.trainables)
+            #G_opt.register_gradients(tf.reduce_mean(G_loss), G_gpu.trainables)
             D_opt.register_gradients(tf.reduce_mean(D_loss), D_gpu.trainables)
 
     # Setup training ops.
@@ -279,6 +280,7 @@ def training_loop(
         sched = training_schedule(cur_nimg=cur_nimg, training_set=training_set, **sched_args)
         assert sched.minibatch_size % (sched.minibatch_gpu * num_gpus) == 0
         training_set.configure(sched.minibatch_gpu, sched.lod)
+        testing_set.configure(sched.minibatch_gpu, sched.lod)
         if reset_opt_for_new_lod:
             if np.floor(sched.lod) != np.floor(prev_lod) or np.ceil(sched.lod) != np.ceil(prev_lod):
                 G_opt.reset_optimizer_state(); D_opt.reset_optimizer_state()
