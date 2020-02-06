@@ -156,8 +156,7 @@ def get_all_images(loc,tag):
 
 
 def test_replay(weights, multiple = False, res = (128,128)):
-    dnnlib.tflib.init_tf()
-    G, D, Gs = pickle.load(open(weights, "rb"))
+
     if multiple:
         train_images, train_labels = get_all_images(r'../databases/replay-attack/train_frames_multiple',"attack")
         test_images, test_labels = get_all_images(r'../databases/replay-attack/test_frames_multiple',"attack")
@@ -172,28 +171,31 @@ def test_replay(weights, multiple = False, res = (128,128)):
     print("nb train images: " + str(len(train_labels)))
     print("nb test images: " + str(len(test_labels)))
 
+    dnnlib.tflib.init_tf()
+    if type(weights) is not list:
+        weights = [weights]
+    for weight in weights:
+        print("running: " + weight)
+        G, D, Gs = pickle.load(open(weight, "rb"))
 
-    train_pred = []
-    for image in train_images:
-        image = np.array(Image.open(image))
-        image = resize(image, res).reshape(1, 3, res[0],res[1])
-        train_pred.append(D.run(image, None)[0][0])
+        train_pred = []
+        for image in train_images:
+            image = np.array(Image.open(image))
+            image = resize(image, res).reshape(1, 3, res[0],res[1])
+            train_pred.append(D.run(image, None)[0][0])
 
-    print("done train")
+        print("done train")
 
-    test_pred = []
-    for image in test_images:
-        image = np.array(Image.open(image))
-        image = resize(image, res).reshape(1, 3, res[0],res[1])
-        test_pred.append(D.run(image, None)[0][0])
+        test_pred = []
+        for image in test_images:
+            image = np.array(Image.open(image))
+            image = resize(image, res).reshape(1, 3, res[0],res[1])
+            test_pred.append(D.run(image, None)[0][0])
 
-    calculate_metrics(train_pred,train_labels,test_pred,test_labels)
+        calculate_metrics(train_pred,train_labels,test_pred,test_labels)
 
 
 def test_casia(weights, multiple = False, res = (128,128)):
-    dnnlib.tflib.init_tf()
-
-    G, D, Gs = pickle.load(open(weights, "rb"))
 
     if multiple:
         train_images, train_labels = get_all_images(r'../databases/casia-fasd/train_frames_multiple',"attack")
@@ -207,28 +209,39 @@ def test_casia(weights, multiple = False, res = (128,128)):
     print("nb train images: " + str(len(train_labels)))
     print("nb test images: " + str(len(test_labels)))
 
+    dnnlib.tflib.init_tf()
+    if type(weights) is not list:
+        weights = [weights]
+    for weight in weights:
+        print("running: " + weight)
+        G, D, Gs = pickle.load(open(weight, "rb"))
 
-    train_pred = []
-    for image in train_images:
-        image = np.array(Image.open(image))
-        image = resize(image, res).reshape(1, 3, res[0],res[1])
-        train_pred.append(D.run(image, None)[0][0])
+        train_pred = []
+        for image in train_images:
+            image = np.array(Image.open(image))
+            image = resize(image, res).reshape(1, 3, res[0],res[1])
+            train_pred.append(D.run(image, None)[0][0])
 
-    print("done train")
+        print("done train")
 
-    test_pred = []
-    for image in test_images:
-        image = np.array(Image.open(image))
-        image = resize(image, res).reshape(1, 3, res[0],res[1])
-        test_pred.append(D.run(image, None)[0][0])
+        test_pred = []
+        for image in test_images:
+            image = np.array(Image.open(image))
+            image = resize(image, res).reshape(1, 3, res[0],res[1])
+            test_pred.append(D.run(image, None)[0][0])
 
-    calculate_metrics(train_pred,train_labels,test_pred,test_labels)
+        calculate_metrics(train_pred,train_labels,test_pred,test_labels)
 
 #weights = r'../weights/karras2019stylegan-ffhq-1024x1024.pkl'
 #weights = r'../weights/network-snapshot-018513.pkl'
-weights = "../weights/stylegan2-ffhq-config-f.pkl"
+#weights = "../weights/stylegan2-ffhq-config-f.pkl"
+path = "../weights/stylegan_training_weights"
+#weights = "../weights/SGfinetuned/network-snapshot-019053.pkl"
+weights = os.listdir(path)
+weights = [os.path.join(path,x) for x in weights]
+weights = sorted(weights)
 
 
-#test_NUAA(weights,(1024,1024))
-test_replay(weights,True, (1024,1024))
-#test_casia(weights,True, (1024,1024))
+#test_NUAA(weights,(128,128))
+test_replay(weights,False, (128,128))
+#test_casia(weights,True, (128,128))
