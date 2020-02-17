@@ -53,8 +53,24 @@ def D_logistic_r1(G, D, opt, training_set, minibatch_size, reals, labels, gamma=
     _ = opt, training_set
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     fake_images_out = G.get_output_for(latents, labels, is_training=True)
-    real_scores_out = D.get_output_for(reals, labels, is_training=True)
-    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)
+    #blurring
+    # Make Gaussian Kernel with desired specs.
+    gauss_kernel = make_gaussian_2d_kernel(3)
+    gauss_kernel = tf.tile(gauss_kernel[:,:,tf.newaxis, tf.newaxis], [1, 1, 3, 1])
+
+    # Convolve.
+    blurred_fakes = tf.nn.separable_conv2d(
+        fake_images_out, gauss_kernel, tf.eye(3, batch_shape=[1, 1]),
+        strides=[1, 1, 1, 1], padding='SAME' , data_format="NCHW")
+    #blurred_fakes = tf.nn.separable_conv2d(fake_images_out, gauss_kernel, strides=[1, 1, 1, 1], padding="SAME")
+    blurred_reals = tf.nn.separable_conv2d(
+        reals, gauss_kernel, tf.eye(3, batch_shape=[1, 1]),
+        strides=[1, 1, 1, 1], padding='SAME' , data_format="NCHW")
+
+    #end blurring
+
+    real_scores_out = D.get_output_for(blurred_reals, labels, is_training=True)
+    fake_scores_out = D.get_output_for(blurred_fakes, labels, is_training=True)
     real_scores_out = autosummary('Loss/scores/real', real_scores_out)
     fake_scores_out = autosummary('Loss/scores/fake', fake_scores_out)
     loss = tf.nn.softplus(fake_scores_out) # -log(1-sigmoid(fake_scores_out))
@@ -66,6 +82,16 @@ def D_logistic_r1(G, D, opt, training_set, minibatch_size, reals, labels, gamma=
         gradient_penalty = autosummary('Loss/gradient_penalty', gradient_penalty)
         reg = gradient_penalty * (gamma * 0.5)
     return loss, reg
+
+
+def make_gaussian_2d_kernel(sigma, truncate=4.0, dtype=tf.float32):
+    radius = tf.to_int32(sigma * truncate)
+    x = tf.cast(tf.range(-radius, radius + 1), dtype=dtype)
+    k = tf.exp(-0.5 * tf.square(x / sigma))
+    k = k / tf.reduce_sum(k)
+    return tf.expand_dims(k, 1) * k
+
+
 
 def D_logistic_r2(G, D, opt, training_set, minibatch_size, reals, labels, gamma=10.0):
     _ = opt, training_set
