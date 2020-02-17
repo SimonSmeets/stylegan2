@@ -1,4 +1,7 @@
 # Load pre-trained network.
+import multiprocessing
+from multiprocessing import Queue
+
 import dnnlib
 from dnnlib import tflib
 import numpy as np
@@ -172,35 +175,19 @@ def test_replay(weights, multiple = False, res = (128,128)):
     print("nb train images: " + str(len(train_labels)))
     print("nb test images: " + str(len(test_labels)))
 
-    all_hter = {}
-
-    dnnlib.tflib.init_tf()
     if type(weights) is not list:
         weights = [weights]
 
+    queue = Queue()
+    all_hter = []
     for weight in weights:
-        print("running: " + weight)
-        G, D, Gs = pickle.load(open(weight, "rb"))
+        p = multiprocessing.Process(target=process_weight,args=(weight,train_images,train_labels,test_images,test_labels,res, queue))
+        p.start()
+        all_hter.append(queue.get())
+        p.join()
 
-        train_pred = []
-        for image in train_images:
-            image = np.array(Image.open(image))
-            image = resize(image, res).reshape(1, 3, res[0],res[1])
-            train_pred.append(D.run(image, None)[0][0])
-
-        print("done train")
-
-        test_pred = []
-        for image in test_images:
-            image = np.array(Image.open(image))
-            image = resize(image, res).reshape(1, 3, res[0],res[1])
-            test_pred.append(D.run(image, None)[0][0])
-
-        hter = calculate_metrics(train_pred,train_labels,test_pred,test_labels)
-        all_hter[weight] = hter
-
-    for item in all_hter:
-        print(item,all_hter[item])
+    for weight, hter in all_hter:
+        print(weight, hter)
 
 def test_casia(weights, multiple = False, res = (128,128)):
 
@@ -216,51 +203,56 @@ def test_casia(weights, multiple = False, res = (128,128)):
     print("nb train images: " + str(len(train_labels)))
     print("nb test images: " + str(len(test_labels)))
 
-    all_hter = {}
-
-    dnnlib.tflib.init_tf()
-    if type(weights) is not list:
-        weights = [weights]
+    queue = Queue()
+    all_hter = []
     for weight in weights:
-        print("running: " + weight)
-        G, D, Gs = pickle.load(open(weight, "rb"))
+        p = multiprocessing.Process(target=process_weight,args=(weight,train_images,train_labels,test_images,test_labels,res, queue))
+        p.start()
+        all_hter.append(queue.get())
+        p.join()
 
-        train_pred = []
-        for image in train_images:
-            image = np.array(Image.open(image))
-            image = resize(image, res).reshape(1, 3, res[0],res[1])
-            train_pred.append(D.run(image, None)[0][0])
+    for weight, hter in all_hter:
+        print(weight, hter)
 
-        print("done train")
 
-        test_pred = []
-        for image in test_images:
-            image = np.array(Image.open(image))
-            image = resize(image, res).reshape(1, 3, res[0],res[1])
-            test_pred.append(D.run(image, None)[0][0])
+def process_weight(weight,train_images,train_labels,test_images,test_labels,res,queue):
+    dnnlib.tflib.init_tf()
+    print("running: " + weight)
+    G, D, Gs = pickle.load(open(weight, "rb"))
 
-        hter = calculate_metrics(train_pred,train_labels,test_pred,test_labels)
-        all_hter[weight] = hter
+    train_pred = []
+    for image in train_images:
+        image = np.array(Image.open(image))
+        image = resize(image, res).reshape(1, 3, res[0], res[1])
+        train_pred.append(D.run(image, None)[0][0])
 
-    for item in all_hter:
-        print(item,all_hter[item])
+    print("done train")
 
+    test_pred = []
+    for image in test_images:
+        image = np.array(Image.open(image))
+        image = resize(image, res).reshape(1, 3, res[0], res[1])
+        test_pred.append(D.run(image, None)[0][0])
+
+    hter = calculate_metrics(train_pred, train_labels, test_pred, test_labels)
+    queue.put((weight.split("-")[-1].split(".")[0],hter))
 
 #weights = r'../weights/karras2019stylegan-ffhq-1024x1024.pkl'
 #weights = r'../weights/network-snapshot-018513.pkl'
 #weights = "../weights/stylegan2-ffhq-config-f.pkl"
-path = "../weights/stylegan_training_weights/multiple_res"
+#path = "../weights/stylegan_training_weights/multiple_res"
 #weights = "../weights/SGfinetuned/network-snapshot-019053.pkl"
+path = "../weights/stylegan2_training_weights"
+
 weights = os.listdir(path)
 weights = [os.path.join(path,x) for x in weights]
+weights = list(filter(lambda x: "-02" in x, weights))
 weights = sorted(weights)
 
-
-#test_NUAA(weights,(128,128))
+print(weights)
+weights = "../weights/stylegan2_training_weights/network-snapshot-004512.pkl"
+test_NUAA(weights,(128,128))
 #test_replay(weights,False, (128,128))
-test_casia(weights,False, (128,128))
+#test_casia(weights,False, (128,128))
 
-# res = 64
-# for weight in weights:
-#     test_replay(weight, False, (res, res))
-#     res *=2
+
