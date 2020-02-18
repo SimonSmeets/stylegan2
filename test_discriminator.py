@@ -250,9 +250,9 @@ weights = list(filter(lambda x: "-02" in x, weights))
 weights = sorted(weights)
 
 print(weights)
-weights = "../weights/stylegan2_training_weights/network-snapshot-004512.pkl"
-test_NUAA(weights,(128,128))
-#test_replay(weights,False, (128,128))
+weights = "../weights/network-snapshot-000541.pkl"
+#test_NUAA(weights,(128,128))
+test_replay(weights,False, (128,128))
 #test_casia(weights,False, (128,128))
 
 
