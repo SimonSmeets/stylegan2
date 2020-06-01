@@ -501,7 +501,7 @@ def create_celeba(tfrecord_dir, celeba_dir, cx=89, cy=121):
 
 def create_from_images(tfrecord_dir, image_dir, shuffle):
     print('Loading images from "%s"' % image_dir)
-    image_filenames = sorted(glob.glob(os.path.join(image_dir, '*')))
+    image_filenames = sorted(glob.glob(os.path.join(image_dir, '*.*'),recursive=True))
     if len(image_filenames) == 0:
         error('No input images found')
 
@@ -517,6 +517,7 @@ def create_from_images(tfrecord_dir, image_dir, shuffle):
 
     with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
         order = tfr.choose_shuffled_order() if shuffle else np.arange(len(image_filenames))
+        labels = []
         for idx in range(order.size):
             img = np.asarray(PIL.Image.open(image_filenames[order[idx]]))
             if channels == 1:
@@ -524,6 +525,49 @@ def create_from_images(tfrecord_dir, image_dir, shuffle):
             else:
                 img = img.transpose([2, 0, 1]) # HWC => CHW
             tfr.add_image(img)
+            labels.append(get_label(image_filenames[order[idx]]))
+        tfr.add_labels(np.array(labels))
+
+def get_label(filename):
+    if "casia-fasd" in filename:
+        person_nb, actual_name = filename.split("/")[-2:]
+        actual_name = actual_name.split(".")[0][:-2]
+        if actual_name.startswith("HR_"):
+            curlabel = int(actual_name[-1]) + 8
+        else:
+            curlabel = int(actual_name)
+        return [curlabel,int(person_nb)*100+curlabel]
+    if "replay-attack" in filename:
+        attack_or_real, attack_mode, actual_name = filename.split("/")[-3:]
+        if "attack" in attack_or_real:
+            if "highdef_photo" in actual_name and actual_name.startswith("attack_highdef"):
+                curlabel = 1
+            elif "highdef_video" in actual_name:
+                curlabel = 2
+            elif "mobile_photo" in actual_name:
+                curlabel = 3
+            elif "mobile_video" in actual_name:
+                curlabel = 4
+            elif "attack_print" in actual_name:
+                curlabel = 5
+            if "adverse" in actual_name:
+                curlabel += 5
+            if "hand" in attack_mode:
+                curlabel += 10
+            client_num = int(actual_name.split("_")[2].lstrip("client"))
+
+        if "real" in filename:
+            curlabel = 20 + int(actual_name.split(".")[0].split("_")[-1])
+            client_num = int(actual_name.split("_")[0].lstrip("client"))
+            if "adverse" in actual_name:
+                curlabel += 2
+        return [curlabel,client_num*100+curlabel]
+    if "NUAA" in filename:
+        if "ClientFace" in filename:
+            return [0,filename]
+        else:
+            return [1,filename]
+
 
 #----------------------------------------------------------------------------
 
