@@ -18,7 +18,7 @@ from dnnlib import tflib
 from full_video_test import test_video
 from training import dataset, misc
 
-
+#old
 def create_fakes(nb, weights):
     dnnlib.tflib.init_tf()
 
@@ -43,6 +43,7 @@ def create_fakes(nb, weights):
     D.print_layers()
     return images
 
+#old
 def get_images(nb, real):
     if real:
         path = r'../databases/NUAA/Detectedface/ClientFace'
@@ -66,6 +67,7 @@ def get_images(nb, real):
     print(labels.shape)
     return images,labels
 
+#old
 def test_NUAA(weights,res):
     dnnlib.tflib.init_tf()
     G, D, Gs = pickle.load(open(weights, "rb"))
@@ -99,7 +101,7 @@ def test_NUAA(weights,res):
     calculate_metrics(y_pred_treshold,y_calc_treshold,y_test_pred,y_test)
 
 
-
+#old
 def calculate_metrics_all_frames(train_predictions,train_true,test_predictions,test_true):
 
     all_training_predictions = []
@@ -171,16 +173,16 @@ def calculate_metrics(train_predictions,train_true,test_predictions,test_true):
 
 
     fpr, tpr, threshold = roc_curve(train_true, train_predictions, pos_label=1)
-    print("fpr = ", list(fpr))
-    print("tpr = ", list(tpr))
-    print("train_threshold = ", list(threshold))
-    print("train_hter = " , [(fpr[i] + (1-tpr[i]))/2 for i in range(0,len(fpr))])
+    # print("fpr = ", list(fpr))
+    # print("tpr = ", list(tpr))
+    # print("train_threshold = ", list(threshold))
+    # print("train_hter = " , [(fpr[i] + (1-tpr[i]))/2 for i in range(0,len(fpr))])
 
     test_fpr, test_tpr, test_threshold = roc_curve(test_true, test_predictions, pos_label=1)
-    print("test_fpr = ", list(test_fpr))
-    print("test_tpr = ", list(test_tpr))
-    print("test_threshold = ", list(test_threshold))
-    print("test_hter = " , [(test_fpr[i] + (1-test_tpr[i]))/2 for i in range(0,len(test_fpr))])
+    # print("test_fpr = ", list(test_fpr))
+    # print("test_tpr = ", list(test_tpr))
+    # print("test_threshold = ", list(test_threshold))
+    # print("test_hter = " , [(test_fpr[i] + (1-test_tpr[i]))/2 for i in range(0,len(test_fpr))])
 
     test_predictions = [-x for x in test_predictions]
 
@@ -199,8 +201,8 @@ def calculate_metrics(train_predictions,train_true,test_predictions,test_true):
         if y_thresholded[i] != test_true[i]:
             wrongly_classified.append(true_labels[i])
         all_results.append((test_predictions[i],test_true[i]))
-    print("wrongly classified: ",wrongly_classified)
-    print("all_results", all_results)
+    # print("wrongly classified: ",wrongly_classified)
+    # print("all_results", all_results)
 
     conf = confusion_matrix(test_true,y_thresholded)
     print(conf)
@@ -232,7 +234,7 @@ def calculate_metrics(train_predictions,train_true,test_predictions,test_true):
     print(hter)
     return hter
 
-
+#old, use tfrecords instead
 def get_all_images(loc,tag):
     all_images = []
     all_labels = []
@@ -257,26 +259,8 @@ def get_all_images(loc,tag):
                     all_labels.append([[0]])
     return all_images,all_labels
 
-
-def test_replay(weights, multiple = False, res = (128,128)):
-
-
-    if type(weights) is not list:
-        weights = [weights]
-
-    queue = Queue()
-    all_hter = []
-    for weight in weights:
-        #p = multiprocessing.Process(target=process_weight,args=(weight,train_images,train_labels,test_images,test_labels,res, queue,multiple))
-        p = multiprocessing.Process(target=process_weight_tf,args=(weight,"devel_faces_norm_scaled_real_tf","devel_faces_norm_scaled_attack_tf","test_faces_norm_scaled_real_tf","test_faces_norm_scaled_attack_tf",res, queue))
-        p.start()
-        all_hter.append(queue.get())
-        p.join()
-
-    for weight, hter in all_hter:
-        print(weight, hter*100)
-
-def test_casia(weights, multiple = False, res = (128,128)):
+#actual testing function. newest one in file, but final tests executed in test_generator
+def test_replay(weights):
 
 
     if type(weights) is not list:
@@ -286,7 +270,25 @@ def test_casia(weights, multiple = False, res = (128,128)):
     all_hter = []
     for weight in weights:
         #p = multiprocessing.Process(target=process_weight,args=(weight,train_images,train_labels,test_images,test_labels,res, queue,multiple))
-        p = multiprocessing.Process(target=process_weight_tf,args=(weight,"devel_faces_real_tf","devel_faces_attack_tf","test_faces_real_tf","test_faces_attack_tf",res, queue))
+        p = multiprocessing.Process(target=process_weight_tf,args=(weight,"../databases/replay-attack/faces/train_faces_tf","../databases/casia-fasd/faces/test_faces_tf", queue))
+        p.start()
+        all_hter.append(queue.get())
+        p.join()
+
+    for weight, hter in all_hter:
+        print(weight, hter*100)
+#actual teting function. newest one in file, but final tests executed in test_generator
+def test_casia(weights):
+
+
+    if type(weights) is not list:
+        weights = [weights]
+
+    queue = Queue()
+    all_hter = []
+    for weight in weights:
+        #p = multiprocessing.Process(target=process_weight,args=(weight,train_images,train_labels,test_images,test_labels,res, queue,multiple))
+        p = multiprocessing.Process(target=process_weight_tf,args=(weight,"../databases/replay-attack/faces/train_faces_tf","../databases/casia-fasd/faces/test_faces_tf", queue))
 
         p.start()
         all_hter.append(queue.get())
@@ -295,8 +297,8 @@ def test_casia(weights, multiple = False, res = (128,128)):
     for weight, hter in all_hter:
         print(weight, hter*100)
 
-
-def process_weight_tf(weight,train_images_real,train_images_attack,test_images_real,test_images_attack,res,queue):
+#newest one in file, but final tests executed in test_generator
+def process_weight_tf(weight,training_set,testing_set,queue):
     dnnlib.tflib.init_tf()
     print("running: " + weight)
     G, D, Gs = pickle.load(open(weight, "rb"))
@@ -304,8 +306,16 @@ def process_weight_tf(weight,train_images_real,train_images_attack,test_images_r
     train_pred = []
     train_lab = []
 
-    train = dataset.load_dataset(data_dir="../databases/casia-fasd/faces", tfrecord_dir="train_faces_tf", max_label_size=1, repeat=False, shuffle_mb=0)
-    test = dataset.load_dataset(data_dir="../databases/replay-attack/faces", tfrecord_dir="test_faces_tf", max_label_size=1, repeat=False, shuffle_mb=0)
+    train_data = "/".join(training_set.split("/")[:-1])
+    train_dir = training_set.split("/")[-1]
+
+    test_data = "/".join(testing_set.split("/")[:-1])
+    test_dir = testing_set.split("/")[-1]
+
+
+
+    train = dataset.load_dataset(data_dir=train_data, tfrecord_dir=train_dir, max_label_size=1, repeat=False, shuffle_mb=0)
+    test = dataset.load_dataset(data_dir=test_data, tfrecord_dir=test_dir, max_label_size=1, repeat=False, shuffle_mb=0)
 
     for x in range(train._np_labels.shape[0]-1):
         try:
@@ -334,7 +344,7 @@ def process_weight_tf(weight,train_images_real,train_images_attack,test_images_r
 
     queue.put((weight.split("-")[-1].split(".")[0], hter))
 
-
+#OLD, does not use TFrecords, can give different results due to bad conversions
 def process_weight(weight,train_images,train_labels,test_images,test_labels,res,queue,video):
     dnnlib.tflib.init_tf()
     print("running: " + weight)
@@ -371,7 +381,7 @@ def process_weight(weight,train_images,train_labels,test_images,test_labels,res,
 
     queue.put((weight.split("-")[-1].split(".")[0],hter))
 
-
+#helper
 def generate_images(network_pkl, seeds, truncation_psi, Gs):
     noise_vars = [var for name, var in Gs.components.synthesis.vars.items() if name.startswith('noise')]
 
@@ -391,7 +401,7 @@ def generate_images(network_pkl, seeds, truncation_psi, Gs):
         all_images.append(np.array(PIL.Image.fromarray(images[0], 'RGB')))
     return all_images
 
-
+#helper
 def normalize_img(img):
     pixels = np.asarray(img)
   #  pixels = pixels.astype('float32')
@@ -402,7 +412,7 @@ def normalize_img(img):
     return pixels
 
 
-
+#test, uses old conversion methods that produce wrong results
 def get_threshold_ffhq(weight, nb_images):
     #seeds = random.sample(range(0,100000000), nb_images)
 
@@ -449,6 +459,7 @@ def get_threshold_ffhq(weight, nb_images):
     print(eer)
     return eer_threshold, D
 
+#test, uses old conversion methods
 def test_ffhq(weight,test_images,test_labels,queue,queue_casia):
     res = (128,128)
 
@@ -475,8 +486,6 @@ def test_ffhq(weight,test_images,test_labels,queue,queue_casia):
     process_values(weight,test_pred_casia,test_labels[1],threshold,queue_casia)
 
 
-
-
 def process_values(weight,test_pred,test_labels, threshold, queue):
 
     test_thresholded = [0 if x > threshold else 1 for x in test_pred]
@@ -499,8 +508,8 @@ def process_values(weight,test_pred,test_labels, threshold, queue):
     print("HTER: ")
     print(hter)
     queue.put((weight.split("-")[-1].split(".")[0], hter))
-
-def test_with_ffhq_threshold(weights):
+#old
+def test_with_ffhq_threshold(weights,test_images,test_labels):
     if type(weights) is not list:
         weights = [weights]
 
@@ -526,29 +535,10 @@ def test_with_ffhq_threshold(weights):
 
 
 
-
-
-#weights = r'../weights/karras2019stylegan-ffhq-1024x1024.pkl'
-#weights = r'../weights/network-snapshot-018513.pkl'
-#weights = "../weights/stylegan2-ffhq-config-f.pkl"
-#path = "../weights/finetuned_casia_weights"
-#weights = "../weights/SGfinetuned/network-snapshot-019053.pkl"
-#path = "../weights/stylegan2_normalized_straight"
-#path = "../results/stylegan2_training_weights"
-#
-    # weights = "../weights/stylegan2_training_weights/network-snapshot-012513.pkl"
-
-# #weights = list(filter(lambda x: "-02" in x, weights))
-# weights = weights[15:]
-## #weights = weights[-1]
-# #test_NUAA(weights,(128,128))
-#
-# #test_with_ffhq_threshold(weights)
-#
 if __name__ == '__main__':
     path = "../weights/stylegan2_straight_faces/"
     weights = os.listdir(path)
     weights = [os.path.join(path, x) for x in weights if x.endswith(".pkl")]
     weights = sorted(weights)[-1]
-    test_replay(weights, False, (128, 128))
-    # test_casia(weights, False, (128, 128))
+    test_replay(weights)
+    # test_casia(weights)

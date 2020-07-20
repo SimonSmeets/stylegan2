@@ -12,6 +12,9 @@ from test_discriminator import get_all_images
 from test_generator import getThreshold, threshold_values, calculate_metrics
 
 
+#tested before generator was used
+
+
 class DataGenerator(keras.utils.Sequence):
     'Generates data for Keras'
     def __init__(self, list_IDs, labels, batch_size=32, dim=(32,32,32), n_channels=1,

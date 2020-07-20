@@ -1,6 +1,9 @@
 import dataset_tool
 from training.dataset import load_dataset
 
+#creates tfrecord from dir
+
+
 tfrecord_dir = "../databases/replay-attack/blink_dataset_replay"
 image_dir = '../databases/replay-attack/faces/test_faces/**'
 shuffle = True

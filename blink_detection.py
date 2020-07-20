@@ -20,10 +20,6 @@ def eye_aspect_ratio(eye):
     return ear
 
 
-
-
-
-
 def check_blink(file_name):
     cap = cv2.VideoCapture(file_name)
     if not cap.isOpened():
@@ -66,7 +62,7 @@ def check_blink(file_name):
             # print(cur_max - cur_min)
 
 
-            if (cur_max - cur_min > 0.108): #cas =  0.1365
+            if (cur_max - cur_min > 0.108):
                 return True
 
 

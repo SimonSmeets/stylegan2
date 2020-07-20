@@ -1,14 +1,8 @@
 import math
-import pickle
 
 import cv2
-from PIL import Image
-import numpy as np
 
-import dataset_tool
-from dnnlib import tflib
-
-import dnnlib
+#tested the use of multiple frames from video and face cropping
 
 
 def test_video_single(file_name,D):

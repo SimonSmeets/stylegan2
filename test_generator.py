@@ -1,27 +1,28 @@
 import multiprocessing
-from multiprocessing import Queue
-from keras.applications.resnet import ResNet50
-from keras_vggface.vggface import VGGFace
-
-
-import os
 import time
+from multiprocessing import Queue
 
-from PIL import Image
-from keras import Input, Model, Sequential
+import numpy as np
+import os
+from keras import Input, Model
 from keras.layers import Dense, Conv2D, MaxPooling2D, concatenate, Flatten
+from keras_vggface.vggface import VGGFace
 from skimage.feature import hog
+from skimage.metrics import structural_similarity as ssim
+from skimage.transform import resize
 from sklearn.metrics import confusion_matrix, roc_curve
 
-import dnnlib
 import pretrained_networks
 import projector
 from blink_detection import check_blink
 from training import dataset, misc
-import numpy as np
-from skimage.metrics import structural_similarity as ssim
-from PIL import Image
-from skimage.transform import resize
+
+##used to perform most of the testing
+
+
+
+
+#uses iterative projection on image
 def project_images_dataset(proj, dataset_name, data_dir, num_snapshots = 2):
 
     print('Loading images from "%s"...' % dataset_name)
@@ -54,6 +55,7 @@ def project_images_dataset(proj, dataset_name, data_dir, num_snapshots = 2):
         break
     return all_ssim, all_mse, labels,avg_time
 
+#used to project single image
 def project_image(proj, targets, img_num, num_snapshots):
     snapshot_steps = set(proj.num_steps - np.linspace(0, proj.num_steps, num_snapshots, endpoint=False, dtype=int))
     #misc.save_image_grid(targets, png_prefix + 'target.png', drange=[-1,1])
@@ -79,7 +81,7 @@ def project_image(proj, targets, img_num, num_snapshots):
     return improj,temp_ssim, temp_mse
     print('\r%-30s\r' % '', end='', flush=True)
 
-
+#helper
 def normalize_img(pixels):
   #  pixels = pixels.astype('float32')
     mean, std = pixels.mean(), pixels.std()
@@ -90,6 +92,7 @@ def normalize_img(pixels):
     pixels = np.floor(pixels).astype('int16')
     return pixels
 
+#old, only tests projecting atm
 def test_network(weight,threshold_dataset_dir, test_dataset_dir,threshold_set,test_set, numsteps = 10 ,queue = None):
     print('Loading networks from "%s"...' %  weight)
     _G, _D, Gs = pretrained_networks.load_networks(weight)
@@ -122,6 +125,7 @@ def test_network(weight,threshold_dataset_dir, test_dataset_dir,threshold_set,te
     return hter_ssim,hter_mse,hter_combined,avg_time
 
 
+#helper
 def getThreshold(predictions,labels):
     if max(labels) > 13:
         labels = [0 if x > 20 else 1 for x in labels]
@@ -151,7 +155,7 @@ def threshold_values(predictions,threshold, asc = True):
     else:
         return [0 if x > threshold else 1 for x in predictions]
 
-
+#interprets labels and calcs HTER
 def calculate_metrics(thresholded_values,labels,name):
     print("Calculating metrics for method: " + name)
 
@@ -197,7 +201,7 @@ def calculate_metrics(thresholded_values,labels,name):
     return hter
 
 
-
+#helper
 def mse(imageA, imageB):
     # the 'Mean Squared Error' between the two images is the
     # sum of the squared difference between the two images;
@@ -210,12 +214,15 @@ def mse(imageA, imageB):
     return err
 
 
-def test_different_nums():
-    weight = "../weights/stylegan_training_weights/network-snapshot-015211.pkl"
-    threshold_dataset_dir = "../databases/replay-attack/"
-    test_dataset_dir = "../databases/casia-fasd/norm_scaled/"
-    threshold_sets = "devel_faces_norm_scaled_tf"
-    test_sets = "test_faces_norm_scaled_tf"
+#uses old test,used for testing optimal it
+def test_different_nums(weight,train_set,test_set):
+
+    threshold_dataset_dir = "/".join(train_set.split("/")[:-1])
+    threshold_sets = train_set.split("/")[-1]
+
+    test_dataset_dir = "/".join(test_set.split("/")[:-1])
+    test_sets = test_set.split("/")[-1]
+
 
     nums = [1,2,5,10,20,50,100]
     all_ssim = []
@@ -233,11 +240,15 @@ def test_different_nums():
     for i in range(len(nums)):
         print(nums[i],all_ssim[i],all_mse[i],all_combined[i],all_times[i])
 
-def test_diff_weights(weights):
-    threshold_dataset_dir = "../databases/casia-fasd/faces/"
-    test_dataset_dir = "../databases/replay-attack/"
-    threshold_sets = "train_faces_tf"
-    test_sets = "blink_dataset_replay"
+
+#function used to produce final results
+def test_diff_weights(weights,training_tf,test_tf):
+
+    threshold_dataset_dir = "/".join(training_tf.split("/")[:-1])
+    threshold_sets = training_tf.split("/")[-1]
+
+    test_dataset_dir = "/".join(test_tf.split("/")[:-1])
+    test_sets = test_tf.split("/")[-1]
 
 
     queue = Queue()
@@ -249,7 +260,7 @@ def test_diff_weights(weights):
         all_results.append(queue.get())
         p.join()
 
-    print("weight","SSIM","MSE","Combined_&","Combined_Scale_Sum","Neural_Network","Discriminator")
+    print("weight","SSIM","MSE","Siamese","Combined_Scale_Sum","full network test","Discriminator,Blink")
     for i in range(0,len(weights)):
         for j in range(0,len(all_results[i])):
             if j == 0:
@@ -260,7 +271,7 @@ def test_diff_weights(weights):
                 print(all_results[i][j] * 100, end= " ")
 
 
-
+#helper test funciton
 def gen_disc_test(proj, D, dataset_name, data_dir, num_snapshots = 2, queue = None):
 
     print('Loading images from "%s"...' % dataset_name)
@@ -310,7 +321,7 @@ def gen_disc_test(proj, D, dataset_name, data_dir, num_snapshots = 2, queue = No
     return [all_ssim, all_mse, labels,discrim,all_real_img,all_proj_img,all_blink_detects]
 
 
-
+#wrapper for gen_disc_test
 def gen_disc_process(weight,numsteps, threshold_set, threshold_dataset_dir, test_set, test_dataset_dir, queue_proj = None):
     print('Loading networks from "%s"...' %  weight)
     _, D, Gs = pretrained_networks.load_networks(weight)
@@ -325,6 +336,7 @@ def gen_disc_process(weight,numsteps, threshold_set, threshold_dataset_dir, test
         queue_proj.put((threshold_results,test_results))
     return threshold_results , test_results
 
+#Helper function that evaluates single GAN
 def test_full_network(weight,threshold_dataset_dir, test_dataset_dir,threshold_set,test_set, numsteps = 10 ,queue = None):
     queue_proj = Queue()
     p = multiprocessing.Process(target=gen_disc_process, args=(weight,numsteps, threshold_set, threshold_dataset_dir, test_set, test_dataset_dir, queue_proj))
@@ -394,20 +406,20 @@ def test_full_network(weight,threshold_dataset_dir, test_dataset_dir,threshold_s
     siamese_test_values = [model.predict([[x],[y]])[0][0] for x,y in zip(rescaled_test_real,rescaled_test_proj) ]
     siamese_test = threshold_values(siamese_test_values,siamese_threshold,False)
 
-    combined_network_test = [x and y for x,y in zip(thresholded_combined_sum, thresholded_test_discriminator)]
+    combined_network_test = [x or y for x,y in zip(thresholded_combined_sum, thresholded_test_discriminator)]
 
-    print("ROC values combined sum")
-    print_roc_values(combined_sum,val_labels)
-    print("ROC values MSE")
-    print_roc_values(test_mse,val_labels)
-    print("ROC values SSIM")
-    print_roc_values(test_ssim,val_labels)
-    print("ROC values Full network combined")
-    print_roc_values(full_network_combined_sum_test,val_labels)
-    print("ROC values full network &&")
-    print_roc_values(combined_network_test,val_labels)
-    print("ROC values siamese network")
-    print_roc_values(siamese_test_values,val_labels)
+    # print("ROC values combined sum")
+    # print_roc_values(combined_sum,val_labels)
+    # print("ROC values MSE")
+    # print_roc_values(test_mse,val_labels)
+    # print("ROC values SSIM")
+    # print_roc_values(test_ssim,val_labels)
+    # print("ROC values Full network combined")
+    # print_roc_values(full_network_combined_sum_test,val_labels)
+    # print("ROC values full network &&")
+    # print_roc_values(combined_network_test,val_labels)
+    # print("ROC values siamese network")
+    # print_roc_values(siamese_test_values,val_labels)
 
 
     added_blink_test = [(not x) or y for x,y in zip(test_detected_blinks,combined_network_test)]
@@ -429,10 +441,10 @@ def test_full_network(weight,threshold_dataset_dir, test_dataset_dir,threshold_s
     hter_blink_test_scaled_sum = calculate_metrics(added_blink_test_with_scaled_sum,test_labels,"Blinky Test with scaled sum GAN")
 
     if queue is not None:
-        queue.put((weight.split("-")[-1].split(".")[0], hter_ssim, hter_mse,hter_combined,hter_combined_sum,hter_network,hter_discriminator))
+        queue.put((weight.split("-")[-1].split(".")[0], hter_ssim, hter_mse,hter_combined,hter_combined_sum,hter_network,hter_discriminator,hter_blink_test))
     return hter_ssim,hter_mse,hter_combined,hter_network
 
-
+#used in training a siamese network
 def train_model(rescaled_th_real,rescaled_th_proj,rescaled_test_real,rescaled_test_proj,labels,val_labels,queue=None):
     print("started model")
     # base_network = create_base_network((128,128,3))
@@ -470,7 +482,7 @@ def train_model(rescaled_th_real,rescaled_th_proj,rescaled_test_real,rescaled_te
     if queue is not None:
         queue.put(model)
     return model
-
+#used in training siamese network
 def create_base_network(input_shape):
     input_img = Input(shape=input_shape)
     x = Conv2D(64,(5, 5), activation='relu', padding='same')(input_img)
@@ -486,7 +498,7 @@ def create_base_network(input_shape):
     x = Conv2D(32, (3, 3), activation='relu', padding='same')(x)
     return Model(input_img, x)
 
-
+#helper
 def print_roc_values(predictions,labels):
 
     predictions = [abs(x) for x in predictions]
@@ -501,7 +513,7 @@ def print_roc_values(predictions,labels):
     print("tpr = ", list(tpr))
     print("threshold = ", list(threshold))
     print("hter = " , [(fpr[i] + (1-tpr[i]))/2 for i in range(0,len(fpr))])
-
+#helper test
 def apply_hog(image):
     fd, hog_image = hog(image, orientations=8, pixels_per_cell=(4, 4),
                         cells_per_block=(1, 1), visualize=True, multichannel=True)
@@ -511,7 +523,7 @@ def apply_hog(image):
     # image *= 255.0 / image.max()
     # image = np.floor(image)
     return [hog_image]
-
+#interprets labeling of tfrecord dataset
 def parse_num(num, dataset):
     person = str(int(num))[:-2]
     vid_num = int(str(int(num))[-2:])
@@ -544,14 +556,11 @@ def parse_num(num, dataset):
             return path_to_vids + "/" + attack_or_real + "/" + full_name
 
 
+if __name__ == '__main__':
+    path = "../weights/stylegan2_straight_faces/"
+    weights = os.listdir(path)
+    weights = [os.path.join(path,x) for x in weights if x.endswith(".pkl")]
+    weights = [sorted(weights)[-1]]
+    test_diff_weights(weights,"../databases/replay-attack/faces/devel_faces_tf", "../databases/casia-fasd/faces/test_faces_tf" )
 
-path = "../weights/stylegan2_straight_faces/"
-
-weights = os.listdir(path)
-weights = [os.path.join(path,x) for x in weights if x.endswith(".pkl")]
-weights = [sorted(weights)[-1]]
-test_diff_weights(weights)
-
-#test_different_nums()
-# dnnlib.tflib.init_tf()
 
